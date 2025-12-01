@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简易PDF编辑器 - 完美修复版</title>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; display: flex; flex-direction: column; background-color: #f0f2f5; }
+
+        /* 顶部工具栏 */
+        header {
+            padding: 15px 20px;
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+            z-index: 10;
+        }
+
+        .tool-group { display: flex; align-items: center; gap: 10px; border-right: 1px solid #ddd; padding-right: 15px; }
+        .tool-group:last-child { border-right: none; }
+        
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #0056b3; }
+        button.danger { background-color: #dc3545; }
+        button.danger:hover { background-color: #a71d2a; }
+        
+        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 150px; }
+
+        /* 主体布局 */
+        #container {
+            flex: 1;
+            display: flex;
+            overflow: hidden; 
+        }
+
+        /* 左侧缩略图 */
+        #sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: #e9ecef;
+            border-right: 1px solid #ccc;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .thumbnail-card {
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 3px solid transparent;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            /* min-height: 100px; */
+        }
+        .thumbnail-card:hover { transform: translateY(-2px); }
+        .thumbnail-card.active { border-color: #007bff; background: #e3f2fd; }
+        .thumbnail-card.deleted { opacity: 0.5; filter: grayscale(100%); }
+        .thumbnail-card.deleted::after {
+            content: "×";
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-weight: bold;
+            font-size: 40px;
+            line-height: 0;
+        }
+        
+        .thumbnail-card canvas { width: 100%; height: auto; border: 1px solid #eee; display: block; }
+        .page-num { text-align: center; font-size: 12px; margin-top: 5px; color: #666; font-weight: bold; }
+
+        /* 右侧编辑区 */
+        #main-view {
+            flex: 1;
+            background: #525659;
+            overflow-y: auto;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .page-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%; 
+            max-width: 900px; 
+        }
+
+        .page-preview {
+            background: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: relative;
+            line-height: 0;
+            min-height: 200px; 
+        }
+
+        .page-preview canvas {
+            max-width: 100%; 
+            height: auto;
+        }
+        
+        .delete-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 5;
+        }
+        .deleted .delete-overlay { display: flex; }
+        
+        .action-bar {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .page-info-label {
+            color: #ddd;
+            font-size: 14px;
+        }
+
+        .status-msg { margin-left: auto; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="tool-group">
+        <label for="fileInput"><b>1. 上传PDF</b> (支持多选):</label>
+        <input type="file" id="fileInput" multiple accept=".pdf">
+    </div>
+
+    <div class="tool-group">
+        <label><b>2. 批量删除</b> (页码):</label>
+        <input type="text" id="deleteInput" placeholder="如: 1, 3-5">
+        <button onclick="applyBatchDelete()" class="danger">删除</button>
+    </div>
+
+    <div class="tool-group">
+        <button onclick="exportPDF()" style="background-color: #28a745;"><b>3. 导出PDF</b></button>
+    </div>
+    
+    <div class="status-msg" id="status">等待文件...</div>
+</header>
+
+<div id="container">
+    <div id="sidebar">
+        <div style="text-align:center; color:#999; margin-top:20px;">缩略图区域</div>
+    </div>
+    <div id="main-view">
+        <div style="color:#ccc; margin-top:50px;">请上传 PDF 文件以开始编辑</div>
+    </div>
+</div>
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let mergedPdfBytes = null; // 这是一个 Uint8Array，用于存储合并后的原始数据
+    let totalPages = 0;
+    let deletedPages = new Set();
+    
+    const TARGET_VIEW_WIDTH = 800; 
+
+    const fileInput = document.getElementById('fileInput');
+    const sidebar = document.getElementById('sidebar');
+    const mainView = document.getElementById('main-view');
+    const statusEl = document.getElementById('status');
+
+    fileInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        if (files.length > 3) {
+            alert("最多只能上传3份PDF文件！");
+            fileInput.value = '';
+            return;
+        }
+
+        statusEl.textContent = "正在合并与渲染...";
+        sidebar.innerHTML = '<div style="text-align:center; padding:20px;">加载中...</div>';
+        mainView.innerHTML = '<div style="color:white; margin-top:50px;">正在处理...</div>';
+        
+        try {
+            await mergeAndRender(files);
+            statusEl.textContent = `加载完成，共 ${totalPages} 页。`;
+        } catch (err) {
+            console.error(err);
+            alert("处理PDF出错，请检查文件是否加密或损坏。");
+            sidebar.innerHTML = '';
+            mainView.innerHTML = '';
+        }
+    });
+
+    async function mergeAndRender(files) {
+        // 1. 合并 PDF (PDF-Lib)
+        const mergedPdf = await PDFLib.PDFDocument.create();
+        for (const file of files) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await PDFLib.PDFDocument.load(arrayBuffer);
+            const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+            copiedPages.forEach((page) => mergedPdf.addPage(page));
+        }
+
+        // 保存“原件”
+        mergedPdfBytes = await mergedPdf.save();
+        totalPages = mergedPdf.getPageCount();
+        deletedPages.clear();
+
+        // 2. 渲染界面 (PDF.js)
+        // 关键修复：使用 .slice() 创建数据的副本传给渲染引擎
+        // 这样原始的 mergedPdfBytes 就不会被 Web Worker 转移所有权或清空
+        await renderInterface(mergedPdfBytes.slice());
+    }
+
+    async function renderInterface(pdfBytes) {
+        sidebar.innerHTML = '';
+        mainView.innerHTML = '';
+        
+        const loadingTask = pdfjsLib.getDocument(pdfBytes);
+        const pdfDoc = await loadingTask.promise;
+
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            
+            // --- 渲染缩略图 ---
+            const thumbViewportUnscaled = page.getViewport({ scale: 1 });
+            const thumbScale = 200 / thumbViewportUnscaled.width; 
+            const thumbViewport = page.getViewport({ scale: thumbScale });
+
+            const thumbCard = document.createElement('div');
+            thumbCard.className = 'thumbnail-card';
+            thumbCard.id = `thumb-${i}`;
+            thumbCard.onclick = () => {
+                document.getElementById(`page-view-${i}`).scrollIntoView({ behavior: 'smooth' });
+                document.querySelectorAll('.thumbnail-card').forEach(c => c.classList.remove('active'));
+                thumbCard.classList.add('active');
+            };
+
+            const thumbCanvas = document.createElement('canvas');
+            const thumbCtx = thumbCanvas.getContext('2d');
+            thumbCanvas.height = thumbViewport.height;
+            thumbCanvas.width = thumbViewport.width;
+
+            await page.render({ canvasContext: thumbCtx, viewport: thumbViewport }).promise;
+            
+            thumbCard.appendChild(thumbCanvas);
+            thumbCard.innerHTML += `<div class="page-num">${i}</div>`;
+            sidebar.appendChild(thumbCard);
+
+            // --- 渲染大图 ---
+            const unscaledViewport = page.getViewport({ scale: 1 });
+            const displayScale = TARGET_VIEW_WIDTH / unscaledViewport.width;
+            const bigViewport = page.getViewport({ scale: displayScale });
+            
+            const pageWrapper = document.createElement('div');
+            pageWrapper.className = 'page-wrapper';
+            
+            const previewBox = document.createElement('div');
+            previewBox.className = 'page-preview';
+            previewBox.id = `page-view-${i}`;
+            
+            const bigCanvas = document.createElement('canvas');
+            bigCanvas.height = bigViewport.height;
+            bigCanvas.width = bigViewport.width;
+            bigCanvas.style.maxWidth = "100%"; 
+
+            await page.render({ canvasContext: bigCanvas.getContext('2d'), viewport: bigViewport }).promise;
+
+            const deleteOverlay = document.createElement('div');
+            deleteOverlay.className = 'delete-overlay';
+            deleteOverlay.innerHTML = `<h2 style="color:red; border: 4px solid red; padding: 10px 20px; transform: rotate(-10deg); background:white;">已删除</h2>`;
+
+            const actionBar = document.createElement('div');
+            actionBar.className = 'action-bar';
+            
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'page-info-label';
+            pageInfo.innerText = `第 ${i} 页`;
+
+            const toggleBtn = document.createElement('button');
+            toggleBtn.innerText = "删除此页";
+            toggleBtn.className = "danger";
+            toggleBtn.onclick = () => togglePageDelete(i);
+
+            previewBox.appendChild(bigCanvas);
+            previewBox.appendChild(deleteOverlay);
+            actionBar.appendChild(pageInfo);
+            actionBar.appendChild(toggleBtn);
+            pageWrapper.appendChild(previewBox);
+            pageWrapper.appendChild(actionBar);
+            mainView.appendChild(pageWrapper);
+        }
+    }
+
+    function togglePageDelete(pageIndex) {
+        if (deletedPages.has(pageIndex)) {
+            deletedPages.delete(pageIndex);
+        } else {
+            deletedPages.add(pageIndex);
+        }
+        updateUIState();
+    }
+
+    function applyBatchDelete() {
+        const input = document.getElementById('deleteInput').value;
+        if (!input) return;
+
+        const parts = input.split(/[,，]/);
+        parts.forEach(part => {
+            part = part.trim();
+            if (part.includes('-')) {
+                const [start, end] = part.split('-').map(Number);
+                if (!isNaN(start) && !isNaN(end)) {
+                    for (let i = start; i <= end; i++) deletedPages.add(i);
+                }
+            } else {
+                const num = Number(part);
+                if (!isNaN(num)) deletedPages.add(num);
+            }
+        });
+        
+        updateUIState();
+        document.getElementById('deleteInput').value = '';
+    }
+
+    function updateUIState() {
+        for (let i = 1; i <= totalPages; i++) {
+            const thumb = document.getElementById(`thumb-${i}`);
+            const pageView = document.getElementById(`page-view-${i}`);
+            const btn = pageView.parentElement.querySelector('button');
+            
+            if (deletedPages.has(i)) {
+                thumb.classList.add('deleted');
+                pageView.classList.add('deleted');
+                btn.innerText = "撤销删除";
+                btn.classList.remove('danger');
+                btn.style.backgroundColor = "#6c757d"; 
+            } else {
+                thumb.classList.remove('deleted');
+                pageView.classList.remove('deleted');
+                btn.innerText = "删除此页";
+                btn.classList.add('danger');
+                btn.style.backgroundColor = ""; 
+            }
+        }
+    }
+
+    async function exportPDF() {
+        if (!mergedPdfBytes) return alert("请先上传文件！");
+        if (mergedPdfBytes.byteLength === 0) return alert("文件数据似乎已丢失，请重新刷新页面上传。");
+
+        statusEl.textContent = "生成中...";
+
+        try {
+            // 这里使用“原件” mergedPdfBytes，它现在应该是安全的，因为之前渲染用的是副本
+            const pdfDoc = await PDFLib.PDFDocument.load(mergedPdfBytes);
+            const newPdf = await PDFLib.PDFDocument.create();
+            
+            const keepIndices = [];
+            for (let i = 0; i < totalPages; i++) {
+                if (!deletedPages.has(i + 1)) {
+                    keepIndices.push(i);
+                }
+            }
+
+            if (keepIndices.length === 0) {
+                statusEl.textContent = "错误：文档为空";
+                return alert("导出失败：所有页面都被删除了。");
+            }
+
+            const copiedPages = await newPdf.copyPages(pdfDoc, keepIndices);
+            copiedPages.forEach(page => newPdf.addPage(page));
+
+            const pdfBytes = await newPdf.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'merge_edited.pdf';
+            link.click();
+            
+            statusEl.textContent = "导出成功！";
+        } catch (e) {
+            console.error(e);
+            alert("导出时发生错误: " + e.message);
+            statusEl.textContent = "导出失败";
+        }
+    }
+</script>
+
+</body>
+</html>
