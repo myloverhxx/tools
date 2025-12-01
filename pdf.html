@@ -2,18 +2,18 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>简易PDF编辑器 - 完美修复版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PDF编辑器 - 移动端适配版</title>
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; display: flex; flex-direction: column; background-color: #f0f2f5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; background-color: #f0f2f5; }
 
-        /* 顶部工具栏 */
+        /* --- 顶部工具栏 --- */
         header {
-            padding: 15px 20px;
+            padding: 10px 15px;
             background: #fff;
             border-bottom: 1px solid #ddd;
             display: flex;
@@ -27,8 +27,11 @@
         .tool-group { display: flex; align-items: center; gap: 10px; border-right: 1px solid #ddd; padding-right: 15px; }
         .tool-group:last-child { border-right: none; }
         
+        /* 标签文字加粗，手机端稍微调小 */
+        label { font-weight: 600; font-size: 14px; color: #333; }
+
         button {
-            padding: 8px 15px;
+            padding: 8px 12px;
             cursor: pointer;
             background-color: #007bff;
             color: white;
@@ -36,21 +39,23 @@
             border-radius: 4px;
             font-size: 14px;
             transition: background 0.2s;
+            white-space: nowrap; /* 防止按钮文字换行 */
         }
+        button:active { transform: scale(0.98); } /* 手机端点击反馈 */
         button:hover { background-color: #0056b3; }
         button.danger { background-color: #dc3545; }
         button.danger:hover { background-color: #a71d2a; }
         
-        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 150px; }
+        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px; }
 
-        /* 主体布局 */
+        /* --- 主体布局 --- */
         #container {
             flex: 1;
             display: flex;
             overflow: hidden; 
         }
 
-        /* 左侧缩略图 */
+        /* --- 左侧缩略图 --- */
         #sidebar {
             width: 260px;
             min-width: 260px;
@@ -61,6 +66,8 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
+            /* 平滑滚动 */
+            -webkit-overflow-scrolling: touch; 
         }
 
         .thumbnail-card {
@@ -68,30 +75,21 @@
             padding: 8px;
             border-radius: 4px;
             cursor: pointer;
-            transition: all 0.2s;
             border: 3px solid transparent;
             position: relative;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            /* min-height: 100px; */
+            min-height: 100px; 
         }
-        .thumbnail-card:hover { transform: translateY(-2px); }
         .thumbnail-card.active { border-color: #007bff; background: #e3f2fd; }
         .thumbnail-card.deleted { opacity: 0.5; filter: grayscale(100%); }
         .thumbnail-card.deleted::after {
-            content: "×";
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: red;
-            font-weight: bold;
-            font-size: 40px;
-            line-height: 0;
+            content: "×"; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); color: red; font-weight: bold; font-size: 40px; line-height: 0;
         }
-        
         .thumbnail-card canvas { width: 100%; height: auto; border: 1px solid #eee; display: block; }
         .page-num { text-align: center; font-size: 12px; margin-top: 5px; color: #666; font-weight: bold; }
 
-        /* 右侧编辑区 */
+        /* --- 右侧编辑区 --- */
         #main-view {
             flex: 1;
             background: #525659;
@@ -101,6 +99,7 @@
             flex-direction: column;
             align-items: center;
             gap: 30px;
+            -webkit-overflow-scrolling: touch;
         }
 
         .page-wrapper {
@@ -125,65 +124,118 @@
         }
         
         .delete-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(255, 255, 255, 0.7);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 5;
+            display: none; justify-content: center; align-items: center; z-index: 5;
         }
         .deleted .delete-overlay { display: flex; }
         
         .action-bar {
             margin-top: 10px;
             display: flex;
-            gap: 10px;
+            gap: 15px;
             align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 5px;
         }
         
-        .page-info-label {
-            color: #ddd;
-            font-size: 14px;
-        }
-
+        .page-info-label { color: #ddd; font-size: 14px; }
         .status-msg { margin-left: auto; font-size: 14px; color: #666; }
+
+        /* ========================================= */
+        /* 移动端适配代码                */
+        /* ========================================= */
+        @media screen and (max-width: 768px) {
+            /* 1. 隐藏左侧侧边栏 */
+            #sidebar {
+                display: none;
+            }
+
+            /* 2. 调整 Header 布局为垂直堆叠 */
+            header {
+                flex-direction: column;
+                align-items: stretch; /* 宽度拉满 */
+                gap: 15px;
+                padding: 15px;
+            }
+
+            .tool-group {
+                flex-direction: column; /* 内部元素也垂直排列 */
+                align-items: flex-start;
+                border-right: none;
+                border-bottom: 1px solid #eee;
+                padding-right: 0;
+                padding-bottom: 10px;
+                width: 100%;
+            }
+            .tool-group:last-child { border-bottom: none; padding-bottom: 0; }
+            
+            /* 3. 让输入框和按钮更易触摸 */
+            input[type="file"] { width: 100%; font-size: 14px; }
+            input[type="text"] { width: 100%; margin-bottom: 10px; padding: 10px; }
+            
+            /* 按钮变成全宽，方便大拇指点击 */
+            button { width: 100%; padding: 12px; font-size: 16px; margin-top: 5px; }
+            
+            /* 批量删除里的布局特殊处理：输入框和按钮分开 */
+            #deleteInput { margin-bottom: 5px; }
+
+            /* 4. 调整主视图间距 */
+            #main-view {
+                padding: 15px; /* 减小边距 */
+                gap: 20px;
+            }
+            
+            .status-msg { margin-left: 0; text-align: center; padding-top: 5px; }
+            
+            .action-bar {
+                background: #444; /* 手机端给底部操作栏加个背景色突显 */
+                padding: 10px;
+                border-radius: 4px;
+                margin-top: 0;
+            }
+        }
     </style>
 </head>
 <body>
 
 <header>
     <div class="tool-group">
-        <label for="fileInput"><b>1. 上传PDF</b> (支持多选):</label>
+        <label for="fileInput">1. 上传PDF (支持多选):</label>
         <input type="file" id="fileInput" multiple accept=".pdf">
     </div>
 
     <div class="tool-group">
-        <label><b>2. 批量删除</b> (页码):</label>
-        <input type="text" id="deleteInput" placeholder="如: 1, 3-5">
-        <button onclick="applyBatchDelete()" class="danger">删除</button>
+        <label>2. 批量删除 (页码):</label>
+        <div style="width: 100%;">
+            <input type="text" id="deleteInput" placeholder="如: 1, 3-5">
+            <button onclick="applyBatchDelete()" class="danger">执行删除</button>
+        </div>
     </div>
 
     <div class="tool-group">
-        <button onclick="exportPDF()" style="background-color: #28a745;"><b>3. 导出PDF</b></button>
+        <button onclick="exportPDF()" style="background-color: #28a745; font-weight:bold;">3. 导出新PDF</button>
     </div>
     
-    <div class="status-msg" id="status">等待文件...</div>
+    <div class="status-msg" id="status">等待上传...</div>
 </header>
 
 <div id="container">
     <div id="sidebar">
-        <div style="text-align:center; color:#999; margin-top:20px;">缩略图区域</div>
+        <div style="text-align:center; color:#999; margin-top:20px;">缩略图</div>
     </div>
     <div id="main-view">
-        <div style="color:#ccc; margin-top:50px;">请上传 PDF 文件以开始编辑</div>
+        <div style="color:#ccc; margin-top:50px; text-align:center;">
+            请上传 PDF 文件<br><small>支持手机与电脑</small>
+        </div>
     </div>
 </div>
 
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    let mergedPdfBytes = null; // 这是一个 Uint8Array，用于存储合并后的原始数据
+    let mergedPdfBytes = null;
     let totalPages = 0;
     let deletedPages = new Set();
     
@@ -203,13 +255,13 @@
             return;
         }
 
-        statusEl.textContent = "正在合并与渲染...";
-        sidebar.innerHTML = '<div style="text-align:center; padding:20px;">加载中...</div>';
-        mainView.innerHTML = '<div style="color:white; margin-top:50px;">正在处理...</div>';
+        statusEl.textContent = "处理中...";
+        sidebar.innerHTML = '<div style="text-align:center; padding:20px;">...</div>';
+        mainView.innerHTML = '<div style="color:white; margin-top:50px; text-align:center;">正在处理...<br>大文件可能需要几秒钟</div>';
         
         try {
             await mergeAndRender(files);
-            statusEl.textContent = `加载完成，共 ${totalPages} 页。`;
+            statusEl.textContent = `共 ${totalPages} 页`;
         } catch (err) {
             console.error(err);
             alert("处理PDF出错，请检查文件是否加密或损坏。");
@@ -219,7 +271,6 @@
     });
 
     async function mergeAndRender(files) {
-        // 1. 合并 PDF (PDF-Lib)
         const mergedPdf = await PDFLib.PDFDocument.create();
         for (const file of files) {
             const arrayBuffer = await file.arrayBuffer();
@@ -228,14 +279,10 @@
             copiedPages.forEach((page) => mergedPdf.addPage(page));
         }
 
-        // 保存“原件”
         mergedPdfBytes = await mergedPdf.save();
         totalPages = mergedPdf.getPageCount();
         deletedPages.clear();
 
-        // 2. 渲染界面 (PDF.js)
-        // 关键修复：使用 .slice() 创建数据的副本传给渲染引擎
-        // 这样原始的 mergedPdfBytes 就不会被 Web Worker 转移所有权或清空
         await renderInterface(mergedPdfBytes.slice());
     }
 
@@ -249,7 +296,7 @@
         for (let i = 1; i <= pdfDoc.numPages; i++) {
             const page = await pdfDoc.getPage(i);
             
-            // --- 渲染缩略图 ---
+            // --- 渲染左侧缩略图 (虽然手机版隐藏，但DOM结构保留，代码通用性更好) ---
             const thumbViewportUnscaled = page.getViewport({ scale: 1 });
             const thumbScale = 200 / thumbViewportUnscaled.width; 
             const thumbViewport = page.getViewport({ scale: thumbScale });
@@ -268,13 +315,14 @@
             thumbCanvas.height = thumbViewport.height;
             thumbCanvas.width = thumbViewport.width;
 
+            // 保持 await，防止冲突
             await page.render({ canvasContext: thumbCtx, viewport: thumbViewport }).promise;
             
             thumbCard.appendChild(thumbCanvas);
             thumbCard.innerHTML += `<div class="page-num">${i}</div>`;
             sidebar.appendChild(thumbCard);
 
-            // --- 渲染大图 ---
+            // --- 渲染右侧大图 ---
             const unscaledViewport = page.getViewport({ scale: 1 });
             const displayScale = TARGET_VIEW_WIDTH / unscaledViewport.width;
             const bigViewport = page.getViewport({ scale: displayScale });
@@ -289,7 +337,7 @@
             const bigCanvas = document.createElement('canvas');
             bigCanvas.height = bigViewport.height;
             bigCanvas.width = bigViewport.width;
-            bigCanvas.style.maxWidth = "100%"; 
+            bigCanvas.style.maxWidth = "100%"; // 响应式核心：图片永远不超过屏幕宽
 
             await page.render({ canvasContext: bigCanvas.getContext('2d'), viewport: bigViewport }).promise;
 
@@ -348,6 +396,7 @@
         
         updateUIState();
         document.getElementById('deleteInput').value = '';
+        alert("批量删除完成");
     }
 
     function updateUIState() {
@@ -374,12 +423,11 @@
 
     async function exportPDF() {
         if (!mergedPdfBytes) return alert("请先上传文件！");
-        if (mergedPdfBytes.byteLength === 0) return alert("文件数据似乎已丢失，请重新刷新页面上传。");
+        if (mergedPdfBytes.byteLength === 0) return alert("文件数据似乎已丢失，请刷新页面重试。");
 
         statusEl.textContent = "生成中...";
 
         try {
-            // 这里使用“原件” mergedPdfBytes，它现在应该是安全的，因为之前渲染用的是副本
             const pdfDoc = await PDFLib.PDFDocument.load(mergedPdfBytes);
             const newPdf = await PDFLib.PDFDocument.create();
             
@@ -391,7 +439,7 @@
             }
 
             if (keepIndices.length === 0) {
-                statusEl.textContent = "错误：文档为空";
+                statusEl.textContent = "错误";
                 return alert("导出失败：所有页面都被删除了。");
             }
 
@@ -409,7 +457,7 @@
         } catch (e) {
             console.error(e);
             alert("导出时发生错误: " + e.message);
-            statusEl.textContent = "导出失败";
+            statusEl.textContent = "失败";
         }
     }
 </script>
