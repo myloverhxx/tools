@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PDF编辑器 - 移动端适配版</title>
+    <title>PDF编辑器 - 最终完整版</title>
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     
@@ -27,7 +27,6 @@
         .tool-group { display: flex; align-items: center; gap: 10px; border-right: 1px solid #ddd; padding-right: 15px; }
         .tool-group:last-child { border-right: none; }
         
-        /* 标签文字加粗，手机端稍微调小 */
         label { font-weight: 600; font-size: 14px; color: #333; }
 
         button {
@@ -39,9 +38,9 @@
             border-radius: 4px;
             font-size: 14px;
             transition: background 0.2s;
-            white-space: nowrap; /* 防止按钮文字换行 */
+            white-space: nowrap; 
         }
-        button:active { transform: scale(0.98); } /* 手机端点击反馈 */
+        button:active { transform: scale(0.98); }
         button:hover { background-color: #0056b3; }
         button.danger { background-color: #dc3545; }
         button.danger:hover { background-color: #a71d2a; }
@@ -66,7 +65,6 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            /* 平滑滚动 */
             -webkit-overflow-scrolling: touch; 
         }
 
@@ -143,58 +141,19 @@
         .page-info-label { color: #ddd; font-size: 14px; }
         .status-msg { margin-left: auto; font-size: 14px; color: #666; }
 
-        /* ========================================= */
-        /* 移动端适配代码                */
-        /* ========================================= */
+        /* 移动端适配 */
         @media screen and (max-width: 768px) {
-            /* 1. 隐藏左侧侧边栏 */
-            #sidebar {
-                display: none;
-            }
-
-            /* 2. 调整 Header 布局为垂直堆叠 */
-            header {
-                flex-direction: column;
-                align-items: stretch; /* 宽度拉满 */
-                gap: 15px;
-                padding: 15px;
-            }
-
-            .tool-group {
-                flex-direction: column; /* 内部元素也垂直排列 */
-                align-items: flex-start;
-                border-right: none;
-                border-bottom: 1px solid #eee;
-                padding-right: 0;
-                padding-bottom: 10px;
-                width: 100%;
-            }
+            #sidebar { display: none; }
+            header { flex-direction: column; align-items: stretch; gap: 15px; padding: 15px; }
+            .tool-group { flex-direction: column; align-items: flex-start; border-right: none; border-bottom: 1px solid #eee; padding-right: 0; padding-bottom: 10px; width: 100%; }
             .tool-group:last-child { border-bottom: none; padding-bottom: 0; }
-            
-            /* 3. 让输入框和按钮更易触摸 */
             input[type="file"] { width: 100%; font-size: 14px; }
             input[type="text"] { width: 100%; margin-bottom: 10px; padding: 10px; }
-            
-            /* 按钮变成全宽，方便大拇指点击 */
             button { width: 100%; padding: 12px; font-size: 16px; margin-top: 5px; }
-            
-            /* 批量删除里的布局特殊处理：输入框和按钮分开 */
             #deleteInput { margin-bottom: 5px; }
-
-            /* 4. 调整主视图间距 */
-            #main-view {
-                padding: 15px; /* 减小边距 */
-                gap: 20px;
-            }
-            
+            #main-view { padding: 15px; gap: 20px; }
             .status-msg { margin-left: 0; text-align: center; padding-top: 5px; }
-            
-            .action-bar {
-                background: #444; /* 手机端给底部操作栏加个背景色突显 */
-                padding: 10px;
-                border-radius: 4px;
-                margin-top: 0;
-            }
+            .action-bar { background: #444; padding: 10px; border-radius: 4px; margin-top: 0; }
         }
     </style>
 </head>
@@ -238,7 +197,6 @@
     let mergedPdfBytes = null;
     let totalPages = 0;
     let deletedPages = new Set();
-    
     const TARGET_VIEW_WIDTH = 800; 
 
     const fileInput = document.getElementById('fileInput');
@@ -296,7 +254,7 @@
         for (let i = 1; i <= pdfDoc.numPages; i++) {
             const page = await pdfDoc.getPage(i);
             
-            // --- 渲染左侧缩略图 (虽然手机版隐藏，但DOM结构保留，代码通用性更好) ---
+            // 渲染左侧缩略图
             const thumbViewportUnscaled = page.getViewport({ scale: 1 });
             const thumbScale = 200 / thumbViewportUnscaled.width; 
             const thumbViewport = page.getViewport({ scale: thumbScale });
@@ -315,14 +273,13 @@
             thumbCanvas.height = thumbViewport.height;
             thumbCanvas.width = thumbViewport.width;
 
-            // 保持 await，防止冲突
             await page.render({ canvasContext: thumbCtx, viewport: thumbViewport }).promise;
             
             thumbCard.appendChild(thumbCanvas);
             thumbCard.innerHTML += `<div class="page-num">${i}</div>`;
             sidebar.appendChild(thumbCard);
 
-            // --- 渲染右侧大图 ---
+            // 渲染右侧大图
             const unscaledViewport = page.getViewport({ scale: 1 });
             const displayScale = TARGET_VIEW_WIDTH / unscaledViewport.width;
             const bigViewport = page.getViewport({ scale: displayScale });
@@ -337,7 +294,7 @@
             const bigCanvas = document.createElement('canvas');
             bigCanvas.height = bigViewport.height;
             bigCanvas.width = bigViewport.width;
-            bigCanvas.style.maxWidth = "100%"; // 响应式核心：图片永远不超过屏幕宽
+            bigCanvas.style.maxWidth = "100%"; 
 
             await page.render({ canvasContext: bigCanvas.getContext('2d'), viewport: bigViewport }).promise;
 
@@ -425,6 +382,15 @@
         if (!mergedPdfBytes) return alert("请先上传文件！");
         if (mergedPdfBytes.byteLength === 0) return alert("文件数据似乎已丢失，请刷新页面重试。");
 
+        // *** 新增：输入文件名逻辑 ***
+        let fileName = prompt("请输入导出文件名 (无需后缀):", "merged_document");
+        // 用户点了取消
+        if (fileName === null) return; 
+        // 用户如果没填，给个默认名
+        if (!fileName.trim()) fileName = "merged_document";
+        // 自动补全 .pdf
+        if (!fileName.toLowerCase().endsWith(".pdf")) fileName += ".pdf";
+
         statusEl.textContent = "生成中...";
 
         try {
@@ -450,7 +416,10 @@
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = 'merge_edited.pdf';
+            
+            // *** 使用用户输入的文件名 ***
+            link.download = fileName;
+            
             link.click();
             
             statusEl.textContent = "导出成功！";
